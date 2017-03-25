@@ -1,4 +1,4 @@
-/* include readable_v41 */
+	/* include readable_v41 */
 #include	"icmpd.h"
 #include	<netinet/in_systm.h>
 #include	<netinet/ip.h>
@@ -6,6 +6,26 @@
 #include	<netinet/udp.h>
 #include	<netinet/tcp.h>
 
+#include 	"icmp_ext_hdr.h"
+
+void print_hex(uint8_t *raw, size_t len)
+{
+	for(int i = 0; i < len; ++i)
+	{
+		if(i  % 16 == 0)
+		{
+			printf("\n");
+		}	
+		else if(i % 8 == 0)
+		{
+			printf(" ");	
+		}
+
+		printf("%02x", raw[i]);	
+	}
+
+	printf("\n");
+}
 void setup_dest(struct sockaddr_in *dest,
 		int sport,
 		const struct ip *hip)
@@ -23,15 +43,46 @@ void setup_dest(struct sockaddr_in *dest,
 void send_message(const struct icmp *icmp,
 		  const struct sockaddr_in *dest)
 {
+#if 0
+	struct pkt_icmpunreachhdr_t unreachtmp;
+	unreachtmp.len = htons(0x20); /* TODO: HACK -- LINUX IS ZEROING OUT THE HDR */
+	unreachtmp.unused = 0;
+	const struct pkt_icmpunreachhdr_t *unreach = &unreachtmp;
+#endif
+	const struct pkt_icmpunreachhdr_t *unreach;
+	unreach = (const struct pkt_icmpunreachhdr_t*)(&icmp->icmp_cksum+1);
+	uint16_t orig_pkt_len = ntohs(unreach->len) * 4;
+	printf("Icmp len: %u other: %u\n", orig_pkt_len, unreach->unused );
+
+
+	/* dump the first extension header */
+	const struct pkt_icmpexthdr_t *exthdr = (((void*)(unreach+1)) + orig_pkt_len);
+	uint16_t extVer = ntohs(exthdr->version_reserved) >> 12;
+	uint16_t chksum = ntohs(exthdr->check);
+	printf("Extension header version: %u chksum: %u\n", extVer, chksum);
+
+	if(extVer != 2)
+	{
+		return;
+	}
+
+	const struct pkt_icmpobjhdr_t *obj = (struct pkt_icmpobjhdr_t*)(exthdr+1);
+	
+	if(obj->class_num != 3)
+	{
+		return;
+	}
+	
+	print_hex((uint8_t*)(obj+1), ntohs(obj->length));
 	
 	/* TODO: Add filtering by ip_proto */ 
-		/* 4find client's Unix domain socket, send headers */
+		/* find client's Unix domain socket, send headers */
 	for (int i = 0; i <= maxi; i++) {
 		if (client[i].connfd >= 0 &&
 			client[i].family == AF_INET)
 		{	
 
-	printf("Sending for port %u\n", dest->sin_port);
+			printf("Sending for port %u\n", dest->sin_port);
 
 			struct icmpd_err	icmpd_err;
 			icmpd_err.icmpd_type = icmp->icmp_type;
@@ -68,10 +119,14 @@ readable_v4(void)
 	len = sizeof(from);
 	n = Recvfrom(fd4, buf, MAXLINE, 0, (SA *) &from, &len);
 
-	printf("%d bytes ICMPv4 from %s:",
-		   n, Sock_ntop_host((SA *) &from, len));
+	print_hex((uint8_t*)buf, n);
 
 	ip = (struct ip *) buf;		/* start of IP header */
+	printf("%d bytes ICMPv4 from %s (ip from->to: %s->%s:\n",
+		   n, Sock_ntop_host((SA *) &from, len),
+			   Inet_ntop(AF_INET, &ip->ip_src, srcstr, sizeof(srcstr)),
+			   Inet_ntop(AF_INET, &ip->ip_dst, dststr, sizeof(dststr)));
+
 	hlen1 = ip->ip_hl << 2;		/* length of IP header */
 
 	icmp = (struct icmp *) (buf + hlen1);	/* start of ICMP header */
@@ -82,9 +137,10 @@ readable_v4(void)
 /* end readable_v41 */
 
 /* include readable_v42 */
-	if (icmp->icmp_type == ICMP_UNREACH ||
-		icmp->icmp_type == ICMP_TIMXCEED ||
-		icmp->icmp_type == ICMP_SOURCEQUENCH) {
+	if (icmp->icmp_type == ICMP_UNREACH)
+		// icmp->icmp_type == ICMP_TIMXCEED ||
+		// icmp->icmp_type == ICMP_SOURCEQUENCH) {
+		{
 		if (icmplen < 8 + 20 + 8)
 			err_quit("icmplen (%d) < 8 + 20 + 8", icmplen);
 
@@ -94,7 +150,7 @@ readable_v4(void)
 			   Inet_ntop(AF_INET, &hip->ip_src, srcstr, sizeof(srcstr)),
 			   Inet_ntop(AF_INET, &hip->ip_dst, dststr, sizeof(dststr)),
 			   hip->ip_p);
-	        bzero(&dest, sizeof(dest));
+
  		if (hip->ip_p == IPPROTO_UDP) {
 			udp = (struct udphdr *) (buf + hlen1 + 8 + hlen2);
 			sport = udp->uh_sport;
