@@ -24,8 +24,12 @@ option rfc7710-captive-portal code 160 = string;
 
 ## Invoke CAPPORT work-flow when DHCP has updated the license file.
 
-*There seems to be a way to configure dhclient to call a script when lease has been updated.*
+*There seems to be a way to configure dhclient to call a script when
+lease has been updated.*
+See ```man 8 dhclient-script```
 
+*Write a script to send HUP signal to the capport client to advance
+the workflow.*
 
 ## Interpreting the license file.
 
