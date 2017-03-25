@@ -130,8 +130,8 @@ configure:2307: $? = 0
 configure:2319: result: yes
 configure:2403: checking for t_open in -lnsl
 configure:2434: gcc -o conftest -g -O2 -D_REENTRANT   conftest.c -lnsl  -lpthread  >&5
-/tmp/ccugRUe8.o: In function `main':
-/home/kyle/capport_icmpd/unpv13e/configure:2431: undefined reference to `t_open'
+/tmp/ccouJYyX.o: In function `main':
+/home/kyle/capport/unpv13e/configure:2431: undefined reference to `t_open'
 collect2: error: ld returned 1 exit status
 configure:2437: $? = 1
 configure: failed program was:
@@ -176,8 +176,8 @@ configure:2591: checking for /home/kyle/libresolv.a
 configure:2598: result: no
 configure:2601: checking for res_init in -lresolv
 configure:2632: gcc -o conftest -g -O2 -D_REENTRANT   conftest.c -lresolv  -lpthread  >&5
-/tmp/cc3avKri.o: In function `main':
-/home/kyle/capport_icmpd/unpv13e/configure:2629: undefined reference to `res_init'
+/tmp/ccOlAM36.o: In function `main':
+/home/kyle/capport/unpv13e/configure:2629: undefined reference to `res_init'
 collect2: error: ld returned 1 exit status
 configure:2635: $? = 1
 configure: failed program was:
@@ -1562,9 +1562,9 @@ configure:6890: $? = 0
 configure:6901: result: yes
 configure:6916: checking for kqueue
 configure:6966: gcc -o conftest -g -O2 -D_REENTRANT   conftest.c -lpthread  >&5
-/tmp/cc2vHYvt.o: In function `main':
-/home/kyle/capport_icmpd/unpv13e/configure:7019: undefined reference to `kqueue'
-/tmp/cc2vHYvt.o:(.data.rel+0x0): undefined reference to `kqueue'
+/tmp/ccbBFi0K.o: In function `main':
+/home/kyle/capport/unpv13e/configure:7019: undefined reference to `kqueue'
+/tmp/ccbBFi0K.o:(.data.rel+0x0): undefined reference to `kqueue'
 collect2: error: ld returned 1 exit status
 configure:6969: $? = 1
 configure: failed program was:
@@ -1674,9 +1674,9 @@ configure: failed program was:
 configure:6986: result: no
 configure:6916: checking for kevent
 configure:6966: gcc -o conftest -g -O2 -D_REENTRANT   conftest.c -lpthread  >&5
-/tmp/ccyk37oy.o: In function `main':
-/home/kyle/capport_icmpd/unpv13e/configure:7019: undefined reference to `kevent'
-/tmp/ccyk37oy.o:(.data.rel+0x0): undefined reference to `kevent'
+/tmp/ccXzP6uJ.o: In function `main':
+/home/kyle/capport/unpv13e/configure:7019: undefined reference to `kevent'
+/tmp/ccXzP6uJ.o:(.data.rel+0x0): undefined reference to `kevent'
 collect2: error: ld returned 1 exit status
 configure:6969: $? = 1
 configure: failed program was:
@@ -1916,6 +1916,7 @@ on kyle-VirtualBox
 config.status:628: creating Makefile
 config.status:628: creating Make.defines
 config.status:731: creating config.h
+config.status:981: config.h is unchanged
 
 ## ---------------- ##
 ## Cache variables. ##
