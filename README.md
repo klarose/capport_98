@@ -2,7 +2,7 @@
 
 This project was put together to track some of the work being done at the ietf 98 for the capport working group.
 
-This document summarizes the different parts of the project
+The following sections summarize the different parts of the project.
 
 ## dhclient_config
 
