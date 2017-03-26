@@ -7,6 +7,7 @@
 #include	<netinet/tcp.h>
 
 #include 	"icmp_ext_hdr.h"
+#include 	"icmp_capport.h"
 
 void print_hex(uint8_t *raw, size_t len)
 {
@@ -91,19 +92,54 @@ void send_message(const struct icmp *icmp,
 		}
 	}
 }
+
+void handle_unreach(const struct ip* ip,
+		    const struct ip* hip,
+		    const struct icmp* icmp)
+{
+	char srcstr[INET_ADDRSTRLEN];
+	char dststr[INET_ADDRSTRLEN];
+
+	uint32_t hlen2 = hip->ip_hl << 2;
+
+	printf("\tsrcip = %s, dstip = %s, proto = %d\n",
+		   Inet_ntop(AF_INET, &hip->ip_src, srcstr, sizeof(srcstr)),
+		   Inet_ntop(AF_INET, &hip->ip_dst, dststr, sizeof(dststr)),
+		   hip->ip_p);
+
+	struct sockaddr_in	dest;
+	if (hip->ip_p == IPPROTO_UDP) {
+		const struct udphdr *udp = (struct udphdr *) (((void*)hip) + hlen2);
+		uint16_t sport = udp->uh_sport;
+
+		setup_dest(&dest, sport, ip);
+		send_message(icmp, &dest);
+
+	}
+	else if(hip->ip_p == IPPROTO_TCP) {
+		const struct tcphdr *tcp;
+		tcp = (const struct tcphdr*) (((void*)hip) + hlen2);
+		uint16_t sport = tcp->th_sport;
+		setup_dest(&dest, sport, ip);
+		send_message(icmp, &dest);
+	}
+	else
+	{
+		setup_dest(&dest, 0, ip);
+		send_message(icmp, &dest);
+	}
+}
 		
 int
 readable_v4(void)
 {
-	int			        hlen1, hlen2, icmplen, sport;
+	int			        hlen1, icmplen;
 	char				buf[MAXLINE];
-	char				srcstr[INET_ADDRSTRLEN], dststr[INET_ADDRSTRLEN];
 	ssize_t				n;
 	socklen_t			len;
 	struct ip			*ip, *hip;
 	struct icmp			*icmp;
-	struct udphdr		*udp;
-	struct sockaddr_in	from, dest;
+	struct sockaddr_in	from;
 
 	len = sizeof(from);
 	n = Recvfrom(fd4, buf, MAXLINE, 0, (SA *) &from, &len);
@@ -118,45 +154,17 @@ readable_v4(void)
 	if ( (icmplen = n - hlen1) < 8)
 		err_quit("icmplen (%d) < 8", icmplen);
 
+	hip = (struct ip *) (buf + hlen1 + 8);
 	printf(" type = %d, code = %d\n", icmp->icmp_type, icmp->icmp_code);
 /* end readable_v41 */
 
 /* include readable_v42 */
 	if (icmp->icmp_type == ICMP_UNREACH)
-		// icmp->icmp_type == ICMP_TIMXCEED ||
-		// icmp->icmp_type == ICMP_SOURCEQUENCH) {
-		{
+	{
 		if (icmplen < 8 + 20 + 8)
 			err_quit("icmplen (%d) < 8 + 20 + 8", icmplen);
 
-		hip = (struct ip *) (buf + hlen1 + 8);
-		hlen2 = hip->ip_hl << 2;
-		printf("\tsrcip = %s, dstip = %s, proto = %d\n",
-			   Inet_ntop(AF_INET, &hip->ip_src, srcstr, sizeof(srcstr)),
-			   Inet_ntop(AF_INET, &hip->ip_dst, dststr, sizeof(dststr)),
-			   hip->ip_p);
-
- 		if (hip->ip_p == IPPROTO_UDP) {
-			udp = (struct udphdr *) (buf + hlen1 + 8 + hlen2);
-			sport = udp->uh_sport;
-
-			setup_dest(&dest, sport, ip);
-			send_message(icmp, &dest);
-
-		}
-		else if(hip->ip_p == IPPROTO_TCP) {
-			const struct tcphdr *tcp;
-			tcp = (const struct tcphdr*) (buf + hlen1 + 8 + hlen2);
-			sport = tcp->th_sport;
-			setup_dest(&dest, sport, ip);
-			send_message(icmp, &dest);
-		}
-		else
-		{
-			sport = 0;
-			setup_dest(&dest, sport, ip);
-			send_message(icmp, &dest);
-		}
+		handle_unreach(ip, hip, icmp);
 	}
 	return(--nready);
 }
