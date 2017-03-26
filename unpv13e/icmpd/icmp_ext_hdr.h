@@ -7,8 +7,9 @@ struct pkt_icmphdr_t {
 } __attribute__((packed));
 
 struct pkt_icmpunreachhdr_t {
-  uint16_t len; // 4-byte octets in network order
-  uint16_t unused;
+  uint8_t unused1;
+  uint8_t len; // 4-byte octets in network order
+  uint16_t unused2;
 } __attribute__((packed));
 
 /* RFC 4884 ICMP Multi-part extension header:

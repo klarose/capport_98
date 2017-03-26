@@ -42,27 +42,9 @@ void setup_dest(struct sockaddr_in *dest,
 }
 
 void send_message(const struct icmp *icmp,
-		  const struct sockaddr_in *dest)
+		  const struct sockaddr_in *dest,
+		  int has_capport)
 {
-	const struct pkt_icmpunreachhdr_t *unreach;
-	unreach = (const struct pkt_icmpunreachhdr_t*)(&icmp->icmp_cksum+1);
-	uint16_t orig_pkt_len = ntohs(unreach->len) * 4;
-
-	/* dump the first extension header */
-	const struct pkt_icmpexthdr_t *exthdr = (((void*)(unreach+1)) + orig_pkt_len);
-	uint16_t extVer = ntohs(exthdr->version_reserved) >> 12;
-	uint16_t chksum = ntohs(exthdr->check);
-	int has_capport = 0;	
-	if(extVer == 2)
-	{
-		const struct pkt_icmpobjhdr_t *obj = (struct pkt_icmpobjhdr_t*)(exthdr+1);
-		
-		if(obj->class_num == 3)
-		{
-			has_capport = 1;
-			print_hex((uint8_t*)(obj+1), ntohs(obj->length));
-		}
-	}
 
 	
 	
@@ -93,19 +75,12 @@ void send_message(const struct icmp *icmp,
 	}
 }
 
-void handle_unreach(const struct ip* ip,
-		    const struct ip* hip,
-		    const struct icmp* icmp)
+void handle_icmp(const struct ip* ip,
+		 const struct ip* hip,
+		 const struct icmp* icmp,
+		 int has_capport)
 {
-	char srcstr[INET_ADDRSTRLEN];
-	char dststr[INET_ADDRSTRLEN];
-
 	uint32_t hlen2 = hip->ip_hl << 2;
-
-	printf("\tsrcip = %s, dstip = %s, proto = %d\n",
-		   Inet_ntop(AF_INET, &hip->ip_src, srcstr, sizeof(srcstr)),
-		   Inet_ntop(AF_INET, &hip->ip_dst, dststr, sizeof(dststr)),
-		   hip->ip_p);
 
 	struct sockaddr_in	dest;
 	if (hip->ip_p == IPPROTO_UDP) {
@@ -113,7 +88,7 @@ void handle_unreach(const struct ip* ip,
 		uint16_t sport = udp->uh_sport;
 
 		setup_dest(&dest, sport, ip);
-		send_message(icmp, &dest);
+		send_message(icmp, &dest, has_capport);
 
 	}
 	else if(hip->ip_p == IPPROTO_TCP) {
@@ -121,13 +96,87 @@ void handle_unreach(const struct ip* ip,
 		tcp = (const struct tcphdr*) (((void*)hip) + hlen2);
 		uint16_t sport = tcp->th_sport;
 		setup_dest(&dest, sport, ip);
-		send_message(icmp, &dest);
+		send_message(icmp, &dest, has_capport);
 	}
 	else
 	{
 		setup_dest(&dest, 0, ip);
-		send_message(icmp, &dest);
+		send_message(icmp, &dest, has_capport);
 	}
+}
+		       
+void handle_unreach(const struct ip* ip,
+		    const struct ip* hip,
+		    const struct icmp* icmp)
+{
+	char srcstr[INET_ADDRSTRLEN];
+	char dststr[INET_ADDRSTRLEN];
+
+	printf("\tsrcip = %s, dstip = %s, proto = %d\n",
+		   Inet_ntop(AF_INET, &hip->ip_src, srcstr, sizeof(srcstr)),
+		   Inet_ntop(AF_INET, &hip->ip_dst, dststr, sizeof(dststr)),
+		   hip->ip_p);
+
+	const struct pkt_icmpunreachhdr_t *unreach;
+	unreach = (const struct pkt_icmpunreachhdr_t*)(&icmp->icmp_cksum+1);
+	uint16_t orig_pkt_len = unreach->len * 4;
+
+	/* dump the first extension header */
+	const struct pkt_icmpexthdr_t *exthdr = (((void*)(unreach+1)) + orig_pkt_len);
+	uint16_t extVer = ntohs(exthdr->version_reserved) >> 12;
+	int has_capport = 0;	
+	if(extVer == 2)
+	{
+		const struct pkt_icmpobjhdr_t *obj = (struct pkt_icmpobjhdr_t*)(exthdr+1);
+		
+		if(obj->class_num == 3)
+		{
+			has_capport = 1;
+			print_hex((uint8_t*)(obj+1), ntohs(obj->length));
+		}
+	}
+
+	handle_icmp(ip, hip, icmp, has_capport);
+
+}
+
+void handle_capport(const struct ip* ip,
+		    const struct ip* hip,
+		    const struct icmp* icmp)
+{
+	const struct icmp_capport_header *capport_header;
+	// capport_header = (struct icmp_capport_header*)(&icmp->icmp_void);
+	capport_header = (struct icmp_capport_header*)(&icmp->icmp_cksum+1);
+	int has_valid = (capport_header->flags >> VALIDITY_BIT) & 1;
+	int has_delay = (capport_header->flags >> DELAY_BIT) & 1;
+	int has_pc = (capport_header->flags >> POLICY_CLASS_BIT) & 1;
+
+	int16_t orig_pkt_len = capport_header->length * 4;
+
+	const uint32_t *cur_capport_extension = ((void*)hip) + orig_pkt_len;
+	printf("Handling icmp capport message with flags %04x orig length: %u\n", capport_header->flags, orig_pkt_len);
+
+	if(has_valid)
+	{
+		printf("Has valid footer: %08x\n", ntohl(*cur_capport_extension));
+		cur_capport_extension++;
+	}
+
+	if(has_delay)
+	{
+		printf("Has delay footer: %08x\n", ntohl(*cur_capport_extension));
+		cur_capport_extension++;
+	}
+
+	if(has_pc)
+	{
+		printf("Has policy class footer: %08x\n", ntohl(*cur_capport_extension));
+		cur_capport_extension++;
+	}
+
+	
+	// by default no capport on this. need to figure out something else to do here.
+	handle_icmp(ip, hip, icmp, 0);
 }
 		
 int
@@ -165,6 +214,14 @@ readable_v4(void)
 			err_quit("icmplen (%d) < 8 + 20 + 8", icmplen);
 
 		handle_unreach(ip, hip, icmp);
+	}
+	else if(icmp->icmp_type == ICMP_CAPPORT)
+	{
+		if (icmplen < 8 + 20 + 8)
+			err_quit("icmplen (%d) < 8 + 20 + 8", icmplen);
+		
+		handle_capport(ip, hip, icmp);
+		
 	}
 	return(--nready);
 }
