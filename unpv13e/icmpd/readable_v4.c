@@ -51,7 +51,6 @@ void send_message(const struct icmp *icmp,
 	const struct pkt_icmpexthdr_t *exthdr = (((void*)(unreach+1)) + orig_pkt_len);
 	uint16_t extVer = ntohs(exthdr->version_reserved) >> 12;
 	uint16_t chksum = ntohs(exthdr->check);
-
 	int has_capport = 0;	
 	if(extVer == 2)
 	{
@@ -149,6 +148,12 @@ readable_v4(void)
 			const struct tcphdr *tcp;
 			tcp = (const struct tcphdr*) (buf + hlen1 + 8 + hlen2);
 			sport = tcp->th_sport;
+			setup_dest(&dest, sport, ip);
+			send_message(icmp, &dest);
+		}
+		else
+		{
+			sport = 0;
 			setup_dest(&dest, sport, ip);
 			send_message(icmp, &dest);
 		}
