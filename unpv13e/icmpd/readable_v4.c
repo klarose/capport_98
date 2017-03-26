@@ -43,37 +43,28 @@ void setup_dest(struct sockaddr_in *dest,
 void send_message(const struct icmp *icmp,
 		  const struct sockaddr_in *dest)
 {
-#if 0
-	struct pkt_icmpunreachhdr_t unreachtmp;
-	unreachtmp.len = htons(0x20); /* TODO: HACK -- LINUX IS ZEROING OUT THE HDR */
-	unreachtmp.unused = 0;
-	const struct pkt_icmpunreachhdr_t *unreach = &unreachtmp;
-#endif
 	const struct pkt_icmpunreachhdr_t *unreach;
 	unreach = (const struct pkt_icmpunreachhdr_t*)(&icmp->icmp_cksum+1);
 	uint16_t orig_pkt_len = ntohs(unreach->len) * 4;
-	printf("Icmp len: %u other: %u\n", orig_pkt_len, unreach->unused );
-
 
 	/* dump the first extension header */
 	const struct pkt_icmpexthdr_t *exthdr = (((void*)(unreach+1)) + orig_pkt_len);
 	uint16_t extVer = ntohs(exthdr->version_reserved) >> 12;
 	uint16_t chksum = ntohs(exthdr->check);
-	printf("Extension header version: %u chksum: %u\n", extVer, chksum);
 
-	if(extVer != 2)
+	int has_capport = 0;	
+	if(extVer == 2)
 	{
-		return;
+		const struct pkt_icmpobjhdr_t *obj = (struct pkt_icmpobjhdr_t*)(exthdr+1);
+		
+		if(obj->class_num == 3)
+		{
+			has_capport = 1;
+			print_hex((uint8_t*)(obj+1), ntohs(obj->length));
+		}
 	}
 
-	const struct pkt_icmpobjhdr_t *obj = (struct pkt_icmpobjhdr_t*)(exthdr+1);
 	
-	if(obj->class_num != 3)
-	{
-		return;
-	}
-	
-	print_hex((uint8_t*)(obj+1), ntohs(obj->length));
 	
 	/* TODO: Add filtering by ip_proto */ 
 		/* find client's Unix domain socket, send headers */
@@ -81,8 +72,6 @@ void send_message(const struct icmp *icmp,
 		if (client[i].connfd >= 0 &&
 			client[i].family == AF_INET)
 		{	
-
-			printf("Sending for port %u\n", dest->sin_port);
 
 			struct icmpd_err	icmpd_err;
 			icmpd_err.icmpd_type = icmp->icmp_type;
@@ -92,6 +81,7 @@ void send_message(const struct icmp *icmp,
 
 				/* 4convert type & code to reasonable errno value */
 			icmpd_err.icmpd_errno = EHOSTUNREACH;	/* default */
+			icmpd_err.has_capport = has_capport;
 			if (icmp->icmp_type == ICMP_UNREACH) {
 				if (icmp->icmp_code == ICMP_UNREACH_PORT)
 					icmpd_err.icmpd_errno = ECONNREFUSED;
@@ -119,13 +109,9 @@ readable_v4(void)
 	len = sizeof(from);
 	n = Recvfrom(fd4, buf, MAXLINE, 0, (SA *) &from, &len);
 
-	print_hex((uint8_t*)buf, n);
-
 	ip = (struct ip *) buf;		/* start of IP header */
-	printf("%d bytes ICMPv4 from %s (ip from->to: %s->%s:\n",
-		   n, Sock_ntop_host((SA *) &from, len),
-			   Inet_ntop(AF_INET, &ip->ip_src, srcstr, sizeof(srcstr)),
-			   Inet_ntop(AF_INET, &ip->ip_dst, dststr, sizeof(dststr)));
+	printf("%d bytes ICMPv4 from %s \n",
+		   n, Sock_ntop_host((SA *) &from, len));
 
 	hlen1 = ip->ip_hl << 2;		/* length of IP header */
 
@@ -155,7 +141,7 @@ readable_v4(void)
 			udp = (struct udphdr *) (buf + hlen1 + 8 + hlen2);
 			sport = udp->uh_sport;
 
-			setup_dest(&dest, sport, hip);
+			setup_dest(&dest, sport, ip);
 			send_message(icmp, &dest);
 
 		}
@@ -163,7 +149,7 @@ readable_v4(void)
 			const struct tcphdr *tcp;
 			tcp = (const struct tcphdr*) (buf + hlen1 + 8 + hlen2);
 			sport = tcp->th_sport;
-			setup_dest(&dest, sport, hip);
+			setup_dest(&dest, sport, ip);
 			send_message(icmp, &dest);
 		}
 	}

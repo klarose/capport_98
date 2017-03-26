@@ -1,6 +1,17 @@
 /* include dgcli011 */
 #include	"unpicmpd.h"
 
+void do_capport(const char *ip)
+{
+	printf("OMG Behind a captive portal!\n");
+	
+	char commandStr[256];
+	snprintf(commandStr, sizeof(commandStr), "python3 pycapport.py %s", ip);	
+	printf("Running %s ...", commandStr);
+	int ret = system(commandStr);
+	printf("%i\n", ret);
+}
+
 void
 dg_cli(FILE *fp, int sockfd, const SA *pservaddr, socklen_t servlen)
 {
@@ -36,7 +47,6 @@ dg_cli(FILE *fp, int sockfd, const SA *pservaddr, socklen_t servlen)
 		FD_SET(sockfd, &rset);
 		FD_SET(icmpfd, &rset);
 		if ( (n = Select(maxfdp1, &rset, NULL, NULL, &tv)) == 0) {
-			fprintf(stderr, "socket timeout\n");
 			continue;
 		}
 
@@ -55,6 +65,11 @@ dg_cli(FILE *fp, int sockfd, const SA *pservaddr, socklen_t servlen)
 				   Sock_ntop(&icmpd_err.icmpd_dest, icmpd_err.icmpd_len),
 				   strerror(icmpd_err.icmpd_errno),
 				   icmpd_err.icmpd_type, icmpd_err.icmpd_code);
+			if(icmpd_err.has_capport)
+			{
+				do_capport(Sock_ntop_host(&icmpd_err.icmpd_dest,
+						          icmpd_err.icmpd_len));
+			}
 		}
 	}
 }

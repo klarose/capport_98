@@ -11,6 +11,7 @@ struct icmpd_err {
   char				icmpd_code;	/* actual ICMPv[46] code */
   socklen_t			icmpd_len;	/* length of sockaddr{} that follows */
   struct sockaddr_storage	icmpd_dest;	/* sockaddr_storage handles any size */
+  int				has_capport; /* 0 if capport extension is not present */
 };
 
 #endif	/* __unpicmp_h */
