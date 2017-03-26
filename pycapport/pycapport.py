@@ -18,8 +18,8 @@ def find_if_with_ip(ip):
 # could use netifaces
 def getHwAddr(ifname):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', bytearray(ifname[:15], 'utf-8')))
-    return '-'.join(['%02X' % char for char in info[18:24]])
+    info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', ifname[:15].encode('utf-8')))
+    return '-'.join(['%02x' % ord(char) for char in info[18:24]])
 
 parser = argparse.ArgumentParser(description='Log in to a captive portal')
 parser.add_argument('ip', help='the ip address which has been captivated')
