@@ -1,19 +1,19 @@
 /* include dgcli011 */
 #include	"unpicmpd.h"
 
-void do_capport(const char *ip)
+void do_capport(const char *ip, const char *capport_script)
 {
 	printf("OMG Behind a captive portal!\n");
 	
 	char commandStr[256];
-	snprintf(commandStr, sizeof(commandStr), "python3 pycapport.py %s", ip);	
+	snprintf(commandStr, sizeof(commandStr), "%s %s", capport_script, ip);	
 	printf("Running %s ...", commandStr);
 	int ret = system(commandStr);
 	printf("%i\n", ret);
 }
 
 void
-dg_cli(FILE *fp, int sockfd, const SA *pservaddr, socklen_t servlen)
+dg_cli(FILE *fp, int sockfd, const SA *pservaddr, socklen_t servlen, const char *capport_script)
 {
 	int				icmpfd, maxfdp1;
 	char			sendline[MAXLINE], recvline[MAXLINE + 1];
@@ -68,7 +68,8 @@ dg_cli(FILE *fp, int sockfd, const SA *pservaddr, socklen_t servlen)
 			if(icmpd_err.has_capport)
 			{
 				do_capport(Sock_ntop_host(&icmpd_err.icmpd_dest,
-						          icmpd_err.icmpd_len));
+						          icmpd_err.icmpd_len),
+					   capport_script);
 			}
 		}
 	}
